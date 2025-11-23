@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { Send, Menu, Loader2 } from 'lucide-react';
 import Stage1 from './Stage1';
 import Stage2 from './Stage2';
 import Stage3 from './Stage3';
@@ -9,6 +10,7 @@ export default function ChatInterface({
   conversation,
   onSendMessage,
   isLoading,
+  onOpenSidebar,
 }) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef(null);
@@ -40,6 +42,12 @@ export default function ChatInterface({
   if (!conversation) {
     return (
       <div className="chat-interface">
+        <div className="mobile-header">
+          <button className="menu-btn" onClick={onOpenSidebar}>
+            <Menu size={24} />
+          </button>
+          <span>LLM Council</span>
+        </div>
         <div className="empty-state">
           <h2>Welcome to LLM Council</h2>
           <p>Create a new conversation to get started</p>
@@ -50,6 +58,13 @@ export default function ChatInterface({
 
   return (
     <div className="chat-interface">
+      <div className="mobile-header">
+        <button className="menu-btn" onClick={onOpenSidebar}>
+          <Menu size={24} />
+        </button>
+        <span className="header-title">{conversation.title || 'New Conversation'}</span>
+      </div>
+
       <div className="messages-container">
         {conversation.messages.length === 0 ? (
           <div className="empty-state">
@@ -75,7 +90,7 @@ export default function ChatInterface({
                   {/* Stage 1 */}
                   {msg.loading?.stage1 && (
                     <div className="stage-loading">
-                      <div className="spinner"></div>
+                      <Loader2 className="spinner-icon" size={16} />
                       <span>Running Stage 1: Collecting individual responses...</span>
                     </div>
                   )}
@@ -84,7 +99,7 @@ export default function ChatInterface({
                   {/* Stage 2 */}
                   {msg.loading?.stage2 && (
                     <div className="stage-loading">
-                      <div className="spinner"></div>
+                      <Loader2 className="spinner-icon" size={16} />
                       <span>Running Stage 2: Peer rankings...</span>
                     </div>
                   )}
@@ -99,7 +114,7 @@ export default function ChatInterface({
                   {/* Stage 3 */}
                   {msg.loading?.stage3 && (
                     <div className="stage-loading">
-                      <div className="spinner"></div>
+                      <Loader2 className="spinner-icon" size={16} />
                       <span>Running Stage 3: Final synthesis...</span>
                     </div>
                   )}
@@ -112,7 +127,7 @@ export default function ChatInterface({
 
         {isLoading && (
           <div className="loading-indicator">
-            <div className="spinner"></div>
+            <Loader2 className="spinner-icon" size={20} />
             <span>Consulting the council...</span>
           </div>
         )}
@@ -123,21 +138,21 @@ export default function ChatInterface({
       <form className="input-form" onSubmit={handleSubmit}>
         <textarea
           className="message-input"
-          placeholder={conversation.messages.length === 0 
-            ? "Ask your question... (Shift+Enter for new line, Enter to send)"
-            : "Continue the conversation... (Shift+Enter for new line, Enter to send)"}
+          placeholder={conversation.messages.length === 0
+            ? "Ask your question..."
+            : "Continue the conversation..."}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={isLoading}
-          rows={conversation.messages.length === 0 ? 3 : 2}
+          rows={1}
         />
         <button
           type="submit"
           className="send-button"
           disabled={!input.trim() || isLoading}
         >
-          {isLoading ? 'Sending...' : 'Send'}
+          {isLoading ? <Loader2 className="spinner-icon" size={20} /> : <Send size={20} />}
         </button>
       </form>
     </div>

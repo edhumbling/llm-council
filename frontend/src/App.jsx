@@ -10,6 +10,8 @@ function App() {
   const [currentConversation, setCurrentConversation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   // Load conversations on mount
   useEffect(() => {
     loadConversations();
@@ -19,6 +21,10 @@ function App() {
   useEffect(() => {
     if (currentConversationId) {
       loadConversation(currentConversationId);
+      // Close sidebar on mobile when conversation is selected
+      if (window.innerWidth <= 768) {
+        setIsSidebarOpen(false);
+      }
     }
   }, [currentConversationId]);
 
@@ -50,6 +56,10 @@ function App() {
         ...conversations,
       ]);
       setCurrentConversationId(newConv.id);
+      // Close sidebar on mobile
+      if (window.innerWidth <= 768) {
+        setIsSidebarOpen(false);
+      }
     } catch (error) {
       console.error('Failed to create conversation:', error);
     }
@@ -190,11 +200,14 @@ function App() {
         currentConversationId={currentConversationId}
         onSelectConversation={handleSelectConversation}
         onNewConversation={handleNewConversation}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
       <ChatInterface
         conversation={currentConversation}
         onSendMessage={handleSendMessage}
         isLoading={isLoading}
+        onOpenSidebar={() => setIsSidebarOpen(true)}
       />
     </div>
   );
