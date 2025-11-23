@@ -15,8 +15,10 @@ from .council import run_full_council, generate_conversation_title, stage1_colle
 app = FastAPI(title="LLM Council API")
 
 # Enable CORS
+# Enable CORS
 import os
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+# Allow all origins for simplicity and to avoid configuration errors
+cors_origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
