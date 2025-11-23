@@ -30,7 +30,7 @@ app.add_middleware(
 
 class CreateConversationRequest(BaseModel):
     """Request to create a new conversation."""
-    pass
+    device_id: str = "default"
 
 
 class SendMessageRequest(BaseModel):
@@ -61,16 +61,16 @@ async def root():
 
 
 @app.get("/api/conversations", response_model=List[ConversationMetadata])
-async def list_conversations():
-    """List all conversations (metadata only)."""
-    return await storage.list_conversations()
+async def list_conversations(device_id: str = None):
+    """List all conversations for a device (metadata only)."""
+    return await storage.list_conversations(device_id)
 
 
 @app.post("/api/conversations", response_model=Conversation)
 async def create_conversation(request: CreateConversationRequest):
-    """Create a new conversation."""
+    """Create a new conversation for a device."""
     conversation_id = str(uuid.uuid4())
-    conversation = await storage.create_conversation(conversation_id)
+    conversation = await storage.create_conversation(conversation_id, request.device_id)
     return conversation
 
 
