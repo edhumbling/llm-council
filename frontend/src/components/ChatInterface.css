@@ -290,21 +290,141 @@
   box-shadow: none;
 }
 
-/* Mobile Responsive */
+/* Mobile Responsive - Cute & Compact */
 @media (max-width: 768px) {
+  .chat-header {
+    height: 50px;
+    padding: 0 var(--spacing-md);
+  }
+
+  .menu-btn {
+    padding: 6px;
+  }
+
+  .header-title {
+    font-size: 14px;
+  }
+
   .messages-container {
-    padding: 80px var(--spacing-md) 160px;
+    padding: 60px var(--spacing-sm) 140px;
   }
 
   .input-form {
+    padding: var(--spacing-sm);
+    gap: var(--spacing-sm);
+  }
+
+  /* Smaller empty state */
+  .empty-state h2 {
+    font-size: 28px;
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .empty-state p {
+    font-size: 14px;
+    margin-bottom: var(--spacing-lg);
+  }
+
+  /* Compact example prompts */
+  .example-prompts {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+  }
+
+  .example-prompt {
     padding: var(--spacing-md);
   }
 
-  .empty-state h2 {
-    font-size: 36px;
+  .example-prompt h3 {
+    font-size: 12px;
   }
 
-  .example-prompts {
-    grid-template-columns: 1fr;
+  .example-prompt p {
+    font-size: 11px;
+  }
+
+  /* Compact messages */
+  .message-group {
+    margin-bottom: var(--spacing-lg);
+  }
+
+  .message-label {
+    font-size: 10px;
+    margin-bottom: 6px;
+  }
+
+  .user-message .message-content {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 14px;
+  }
+
+  /* Smaller input */
+  .message-input {
+    padding: 10px var(--spacing-md);
+    font-size: 14px;
+    min-height: 42px;
+    border-radius: var(--radius-xl);
+  }
+
+  .send-button {
+    width: 42px;
+    height: 42px;
+  }
+
+  .send-button svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Compact loading indicators */
+  .loading-indicator,
+  .stage-loading {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 12px;
+  }
+
+  .spinner-icon {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+  .chat-header {
+    height: 48px;
+    padding: 0 var(--spacing-sm);
+  }
+
+  .empty-state h2 {
+    font-size: 24px;
+  }
+
+  .empty-state p {
+    font-size: 13px;
+  }
+
+  .messages-container {
+    padding: 58px 8px 130px;
+  }
+
+  .example-prompt {
+    padding: 12px;
+  }
+
+  .message-input {
+    font-size: 13px;
+    padding: 8px 12px;
+    min-height: 38px;
+  }
+
+  .send-button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .send-button svg {
+    width: 16px;
+    height: 16px;
   }
 }
