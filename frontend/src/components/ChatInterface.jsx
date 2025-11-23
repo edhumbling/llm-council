@@ -42,23 +42,66 @@ export default function ChatInterface({
   if (!conversation) {
     return (
       <div className="chat-interface">
-        <div className="mobile-header">
+        <div className="chat-header">
           <button className="menu-btn" onClick={onOpenSidebar}>
             <Menu size={24} />
           </button>
-          <span>LLM Council</span>
+          <span className="header-title">LLM Council</span>
         </div>
-        <div className="empty-state">
-          <h2>Welcome to LLM Council</h2>
-          <p>Create a new conversation to get started</p>
+        <div className="messages-container">
+          <div className="empty-state">
+            <h2>LLM Council</h2>
+            <p>Get insights from multiple AI models working together</p>
+            <div className="example-prompts">
+              <div className="example-prompt" onClick={() => {
+                const input = document.querySelector('.message-input');
+                if (input) input.value = "Explain quantum computing in simple terms";
+              }}>
+                <h3>🔬 Science</h3>
+                <p>Explain quantum computing in simple terms</p>
+              </div>
+              <div className="example-prompt" onClick={() => {
+                const input = document.querySelector('.message-input');
+                if (input) input.value = "Write a haiku about artificial intelligence";
+              }}>
+                <h3>✨ Creative</h3>
+                <p>Write a haiku about artificial intelligence</p>
+              </div>
+              <div className="example-prompt" onClick={() => {
+                const input = document.querySelector('.message-input');
+                if (input) input.value = "What are the best practices for API design?";
+              }}>
+                <h3>💻 Code</h3>
+                <p>What are the best practices for API design?</p>
+              </div>
+              <div className="example-prompt" onClick={() => {
+                const input = document.querySelector('.message-input');
+                if (input) input.value = "How do I start learning machine learning?";
+              }}>
+                <h3>📚 Learning</h3>
+                <p>How do I start learning machine learning?</p>
+              </div>
+            </div>
+          </div>
         </div>
+        <form className="input-form" onSubmit={(e) => { e.preventDefault(); }}>
+          <textarea
+            className="message-input"
+            placeholder="Ask anything..."
+            disabled
+            rows={1}
+          />
+          <button type="submit" className="send-button" disabled>
+            <Send size={20} />
+          </button>
+        </form>
       </div>
     );
   }
 
   return (
     <div className="chat-interface">
-      <div className="mobile-header">
+      <div className="chat-header">
         <button className="menu-btn" onClick={onOpenSidebar}>
           <Menu size={24} />
         </button>
