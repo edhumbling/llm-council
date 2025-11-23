@@ -23,5 +23,8 @@ CHAIRMAN_MODEL = "deepseek/deepseek-r1:free"
 # OpenRouter API endpoint
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-# Data directory for conversation storage
-DATA_DIR = "data/conversations"
+# Database connection string (Neon PostgreSQL)
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://neondb_owner:npg_iUGqF31QdZfo@ep-empty-art-a96hqpju-pooler.gwc.azure.neon.tech/neondb?sslmode=require&channel_binding=require"
+)

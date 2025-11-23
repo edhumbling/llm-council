@@ -1,24 +1,73 @@
-"""JSON-based storage for conversations."""
+"""PostgreSQL-based storage for conversations using Neon."""
 
 import json
-import os
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from pathlib import Path
-from .config import DATA_DIR
+import asyncpg
+from .config import DATABASE_URL
+
+# Global connection pool
+_pool: Optional[asyncpg.Pool] = None
 
 
-def ensure_data_dir():
-    """Ensure the data directory exists."""
-    Path(DATA_DIR).mkdir(parents=True, exist_ok=True)
+async def get_pool() -> asyncpg.Pool:
+    """Get or create the database connection pool."""
+    global _pool
+    if _pool is None:
+        # Convert postgresql:// to postgresql+asyncpg:// format if needed
+        # asyncpg uses postgresql:// directly
+        _pool = await asyncpg.create_pool(
+            DATABASE_URL,
+            min_size=1,
+            max_size=10,
+            command_timeout=60
+        )
+        # Initialize tables
+        await init_db(_pool)
+    return _pool
 
 
-def get_conversation_path(conversation_id: str) -> str:
-    """Get the file path for a conversation."""
-    return os.path.join(DATA_DIR, f"{conversation_id}.json")
+async def init_db(pool: asyncpg.Pool):
+    """Initialize database tables."""
+    async with pool.acquire() as conn:
+        # Create conversations table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS conversations (
+                id VARCHAR(255) PRIMARY KEY,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                title VARCHAR(500) NOT NULL DEFAULT 'New Conversation',
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create messages table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id SERIAL PRIMARY KEY,
+                conversation_id VARCHAR(255) NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+                role VARCHAR(50) NOT NULL,
+                content TEXT,
+                stage1 JSONB,
+                stage2 JSONB,
+                stage3 JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                message_order INTEGER NOT NULL
+            )
+        """)
+        
+        # Create indexes
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_messages_conversation_id 
+            ON messages(conversation_id)
+        """)
+        
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_messages_order 
+            ON messages(conversation_id, message_order)
+        """)
 
 
-def create_conversation(conversation_id: str) -> Dict[str, Any]:
+async def create_conversation(conversation_id: str) -> Dict[str, Any]:
     """
     Create a new conversation.
 
@@ -28,24 +77,23 @@ def create_conversation(conversation_id: str) -> Dict[str, Any]:
     Returns:
         New conversation dict
     """
-    ensure_data_dir()
-
-    conversation = {
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO conversations (id, created_at, title)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (id) DO NOTHING
+        """, conversation_id, datetime.utcnow(), "New Conversation")
+    
+    return {
         "id": conversation_id,
         "created_at": datetime.utcnow().isoformat(),
         "title": "New Conversation",
         "messages": []
     }
 
-    # Save to file
-    path = get_conversation_path(conversation_id)
-    with open(path, 'w') as f:
-        json.dump(conversation, f, indent=2)
 
-    return conversation
-
-
-def get_conversation(conversation_id: str) -> Optional[Dict[str, Any]]:
+async def get_conversation(conversation_id: str) -> Optional[Dict[str, Any]]:
     """
     Load a conversation from storage.
 
@@ -55,59 +103,101 @@ def get_conversation(conversation_id: str) -> Optional[Dict[str, Any]]:
     Returns:
         Conversation dict or None if not found
     """
-    path = get_conversation_path(conversation_id)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Get conversation metadata
+        row = await conn.fetchrow("""
+            SELECT id, created_at, title
+            FROM conversations
+            WHERE id = $1
+        """, conversation_id)
+        
+        if row is None:
+            return None
+        
+        # Get messages
+        message_rows = await conn.fetch("""
+            SELECT role, content, stage1, stage2, stage3
+            FROM messages
+            WHERE conversation_id = $1
+            ORDER BY message_order ASC
+        """, conversation_id)
+        
+        messages = []
+        for msg_row in message_rows:
+            if msg_row['role'] == 'user':
+                messages.append({
+                    "role": "user",
+                    "content": msg_row['content']
+                })
+            else:
+                messages.append({
+                    "role": "assistant",
+                    "stage1": json.loads(msg_row['stage1']) if msg_row['stage1'] else None,
+                    "stage2": json.loads(msg_row['stage2']) if msg_row['stage2'] else None,
+                    "stage3": json.loads(msg_row['stage3']) if msg_row['stage3'] else None
+                })
+        
+        return {
+            "id": row['id'],
+            "created_at": row['created_at'].isoformat(),
+            "title": row['title'],
+            "messages": messages
+        }
 
-    if not os.path.exists(path):
-        return None
 
-    with open(path, 'r') as f:
-        return json.load(f)
-
-
-def save_conversation(conversation: Dict[str, Any]):
+async def save_conversation(conversation: Dict[str, Any]):
     """
     Save a conversation to storage.
+    Note: This is kept for compatibility but messages are saved individually.
 
     Args:
         conversation: Conversation dict to save
     """
-    ensure_data_dir()
+    # Messages are saved individually via add_user_message/add_assistant_message
+    # Just update the title if needed
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            UPDATE conversations
+            SET title = $1, updated_at = $2
+            WHERE id = $3
+        """, conversation.get('title', 'New Conversation'), datetime.utcnow(), conversation['id'])
 
-    path = get_conversation_path(conversation['id'])
-    with open(path, 'w') as f:
-        json.dump(conversation, f, indent=2)
 
-
-def list_conversations() -> List[Dict[str, Any]]:
+async def list_conversations() -> List[Dict[str, Any]]:
     """
     List all conversations (metadata only).
 
     Returns:
         List of conversation metadata dicts
     """
-    ensure_data_dir()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                c.id,
+                c.created_at,
+                c.title,
+                COUNT(m.id) as message_count
+            FROM conversations c
+            LEFT JOIN messages m ON c.id = m.conversation_id
+            GROUP BY c.id, c.created_at, c.title
+            ORDER BY c.created_at DESC
+        """)
+        
+        return [
+            {
+                "id": row['id'],
+                "created_at": row['created_at'].isoformat(),
+                "title": row['title'],
+                "message_count": row['message_count']
+            }
+            for row in rows
+        ]
 
-    conversations = []
-    for filename in os.listdir(DATA_DIR):
-        if filename.endswith('.json'):
-            path = os.path.join(DATA_DIR, filename)
-            with open(path, 'r') as f:
-                data = json.load(f)
-                # Return metadata only
-                conversations.append({
-                    "id": data["id"],
-                    "created_at": data["created_at"],
-                    "title": data.get("title", "New Conversation"),
-                    "message_count": len(data["messages"])
-                })
 
-    # Sort by creation time, newest first
-    conversations.sort(key=lambda x: x["created_at"], reverse=True)
-
-    return conversations
-
-
-def add_user_message(conversation_id: str, content: str):
+async def add_user_message(conversation_id: str, content: str):
     """
     Add a user message to a conversation.
 
@@ -115,19 +205,20 @@ def add_user_message(conversation_id: str, content: str):
         conversation_id: Conversation identifier
         content: User message content
     """
-    conversation = get_conversation(conversation_id)
-    if conversation is None:
-        raise ValueError(f"Conversation {conversation_id} not found")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Get current message count to set order
+        count = await conn.fetchval("""
+            SELECT COUNT(*) FROM messages WHERE conversation_id = $1
+        """, conversation_id)
+        
+        await conn.execute("""
+            INSERT INTO messages (conversation_id, role, content, message_order)
+            VALUES ($1, $2, $3, $4)
+        """, conversation_id, "user", content, count)
 
-    conversation["messages"].append({
-        "role": "user",
-        "content": content
-    })
 
-    save_conversation(conversation)
-
-
-def add_assistant_message(
+async def add_assistant_message(
     conversation_id: str,
     stage1: List[Dict[str, Any]],
     stage2: List[Dict[str, Any]],
@@ -142,21 +233,27 @@ def add_assistant_message(
         stage2: List of model rankings
         stage3: Final synthesized response
     """
-    conversation = get_conversation(conversation_id)
-    if conversation is None:
-        raise ValueError(f"Conversation {conversation_id} not found")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Get current message count to set order
+        count = await conn.fetchval("""
+            SELECT COUNT(*) FROM messages WHERE conversation_id = $1
+        """, conversation_id)
+        
+        await conn.execute("""
+            INSERT INTO messages (conversation_id, role, stage1, stage2, stage3, message_order)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        """, 
+            conversation_id,
+            "assistant",
+            json.dumps(stage1),
+            json.dumps(stage2),
+            json.dumps(stage3),
+            count
+        )
 
-    conversation["messages"].append({
-        "role": "assistant",
-        "stage1": stage1,
-        "stage2": stage2,
-        "stage3": stage3
-    })
 
-    save_conversation(conversation)
-
-
-def update_conversation_title(conversation_id: str, title: str):
+async def update_conversation_title(conversation_id: str, title: str):
     """
     Update the title of a conversation.
 
@@ -164,9 +261,10 @@ def update_conversation_title(conversation_id: str, title: str):
         conversation_id: Conversation identifier
         title: New title for the conversation
     """
-    conversation = get_conversation(conversation_id)
-    if conversation is None:
-        raise ValueError(f"Conversation {conversation_id} not found")
-
-    conversation["title"] = title
-    save_conversation(conversation)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            UPDATE conversations
+            SET title = $1, updated_at = $2
+            WHERE id = $3
+        """, title, datetime.utcnow(), conversation_id)
