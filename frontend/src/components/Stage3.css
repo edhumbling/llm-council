@@ -1,25 +1,88 @@
 .stage3 {
-  background: #f0fff0;
-  border-color: #c8e6c8;
+  background: var(--bg-secondary);
+  border-color: var(--separator);
+}
+
+.stage3 .stage-title {
+  color: var(--text-primary);
 }
 
 .final-response {
-  background: #ffffff;
-  padding: 20px;
-  border-radius: 6px;
-  border: 1px solid #c8e6c8;
+  background: var(--bg-tertiary);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  border: 0.5px solid var(--separator);
+  position: relative;
+  animation: fadeIn var(--transition-base) ease-out;
 }
 
 .chairman-label {
-  color: #2d8a2d;
+  color: var(--text-secondary);
   font-size: 12px;
-  font-family: monospace;
-  margin-bottom: 12px;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+  margin-bottom: var(--spacing-md);
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  border: 0.5px solid var(--separator);
 }
 
 .final-text {
-  color: #333;
-  line-height: 1.7;
+  color: var(--text-primary);
+  line-height: 1.6;
   font-size: 15px;
+  position: relative;
+}
+
+.final-text .markdown-content {
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.final-text .markdown-content p {
+  margin-bottom: 12px;
+  font-size: 15px;
+}
+
+.final-text .markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.final-text .markdown-content h1,
+.final-text .markdown-content h2,
+.final-text .markdown-content h3 {
+  color: var(--text-primary);
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+.final-text .markdown-content code {
+  background: var(--bg-secondary);
+  border-color: var(--separator);
+  color: var(--text-primary);
+}
+
+.final-text .markdown-content pre {
+  background: var(--bg-secondary);
+  border-color: var(--separator);
+}
+
+.final-text .markdown-content blockquote {
+  border-left-color: var(--accent-blue);
+  background: var(--fill-tertiary);
+  color: var(--text-secondary);
+}
+
+.final-text .markdown-content a {
+  color: var(--accent-blue);
+}
+
+.final-text .markdown-content a:hover {
+  color: var(--accent-blue-hover);
 }

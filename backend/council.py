@@ -158,18 +158,46 @@ Provide a clear, well-reasoned final answer that represents the council's collec
 
     messages = [{"role": "user", "content": chairman_prompt}]
 
-    # Query the chairman model
-    response = await query_model(CHAIRMAN_MODEL, messages)
+    # Query the chairman model with increased timeout
+    print(f"Querying chairman model: {CHAIRMAN_MODEL}")
+    response = await query_model(CHAIRMAN_MODEL, messages, timeout=180.0)
+    used_model = CHAIRMAN_MODEL
 
     if response is None:
-        # Fallback if chairman fails
+        # Fallback: Try using the first council model that succeeded
+        print(f"All chairman models failed. Trying council models as fallback...")
+        
+        # Try each council model as fallback
+        for council_model in COUNCIL_MODELS:
+            print(f"Trying fallback model: {council_model}")
+            fallback_response = await query_model(council_model, messages, timeout=180.0)
+            if fallback_response is not None:
+                return {
+                    "model": council_model,
+                    "response": fallback_response.get('content', '')
+                }
+        
+        # If all fallbacks fail, create a synthesis from Stage 1 results
+        print("All models failed. Creating synthesis from Stage 1 results...")
+        if stage1_results:
+            synthesis = f"""Based on the council's analysis, here is a synthesis of the responses:
+
+{chr(10).join([f"• {result['model']}: {result['response'][:200]}..." if len(result['response']) > 200 else f"• {result['model']}: {result['response']}" for result in stage1_results[:3]])}
+
+Note: The chairman model was unavailable, so this is a summary of the individual responses."""
+            return {
+                "model": "fallback",
+                "response": synthesis
+            }
+        
+        # Last resort error message
         return {
             "model": CHAIRMAN_MODEL,
-            "response": "Error: Unable to generate final synthesis."
+            "response": "Error: Unable to generate final synthesis. All models failed to respond. Please try again."
         }
 
     return {
-        "model": CHAIRMAN_MODEL,
+        "model": used_model,
         "response": response.get('content', '')
     }
 

@@ -28,6 +28,8 @@ function App() {
       setConversations(convs);
     } catch (error) {
       console.error('Failed to load conversations:', error);
+      // Show user-friendly error
+      alert(`Failed to connect to backend: ${error.message}\n\nMake sure the backend server is running on http://localhost:8001`);
     }
   };
 
