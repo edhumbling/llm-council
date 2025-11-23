@@ -34,11 +34,22 @@ async def init_db(pool: asyncpg.Pool):
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS conversations (
                 id VARCHAR(255) PRIMARY KEY,
+                device_id VARCHAR(255) NOT NULL DEFAULT 'default',
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 title VARCHAR(500) NOT NULL DEFAULT 'New Conversation',
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # Add device_id column if it doesn't exist (for existing databases)
+        try:
+            await conn.execute("""
+                ALTER TABLE conversations 
+                ADD COLUMN IF NOT EXISTS device_id VARCHAR(255) NOT NULL DEFAULT 'default'
+            """)
+        except Exception as e:
+            # Column might already exist, ignore
+            pass
         
         # Create messages table
         await conn.execute("""
@@ -67,12 +78,13 @@ async def init_db(pool: asyncpg.Pool):
         """)
 
 
-async def create_conversation(conversation_id: str) -> Dict[str, Any]:
+async def create_conversation(conversation_id: str, device_id: str = "default") -> Dict[str, Any]:
     """
     Create a new conversation.
 
     Args:
         conversation_id: Unique identifier for the conversation
+        device_id: Device identifier for isolation
 
     Returns:
         New conversation dict
@@ -80,13 +92,14 @@ async def create_conversation(conversation_id: str) -> Dict[str, Any]:
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute("""
-            INSERT INTO conversations (id, created_at, title)
-            VALUES ($1, $2, $3)
+            INSERT INTO conversations (id, device_id, created_at, title)
+            VALUES ($1, $2, $3, $4)
             ON CONFLICT (id) DO NOTHING
-        """, conversation_id, datetime.utcnow(), "New Conversation")
+        """, conversation_id, device_id, datetime.utcnow(), "New Conversation")
     
     return {
         "id": conversation_id,
+        "device_id": device_id,
         "created_at": datetime.utcnow().isoformat(),
         "title": "New Conversation",
         "messages": []
@@ -165,26 +178,43 @@ async def save_conversation(conversation: Dict[str, Any]):
         """, conversation.get('title', 'New Conversation'), datetime.utcnow(), conversation['id'])
 
 
-async def list_conversations() -> List[Dict[str, Any]]:
+async def list_conversations(device_id: str = None) -> List[Dict[str, Any]]:
     """
-    List all conversations (metadata only).
+    List all conversations (metadata only), optionally filtered by device.
+
+    Args:
+        device_id: Optional device identifier to filter conversations
 
     Returns:
         List of conversation metadata dicts
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT 
-                c.id,
-                c.created_at,
-                c.title,
-                COUNT(m.id) as message_count
-            FROM conversations c
-            LEFT JOIN messages m ON c.id = m.conversation_id
-            GROUP BY c.id, c.created_at, c.title
-            ORDER BY c.created_at DESC
-        """)
+        if device_id:
+            rows = await conn.fetch("""
+                SELECT 
+                    c.id,
+                    c.created_at,
+                    c.title,
+                    COUNT(m.id) as message_count
+                FROM conversations c
+                LEFT JOIN messages m ON c.id = m.conversation_id
+                WHERE c.device_id = $1
+                GROUP BY c.id, c.created_at, c.title
+                ORDER BY c.created_at DESC
+            """, device_id)
+        else:
+            rows = await conn.fetch("""
+                SELECT 
+                    c.id,
+                    c.created_at,
+                    c.title,
+                    COUNT(m.id) as message_count
+                FROM conversations c
+                LEFT JOIN messages m ON c.id = m.conversation_id
+                GROUP BY c.id, c.created_at, c.title
+                ORDER BY c.created_at DESC
+            """)
         
         return [
             {

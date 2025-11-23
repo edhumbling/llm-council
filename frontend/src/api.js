@@ -4,13 +4,25 @@
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 
+// Generate or retrieve device ID
+function getDeviceId() {
+  let deviceId = localStorage.getItem('llm-council-device-id');
+  if (!deviceId) {
+    // Generate a unique device ID (UUID-like)
+    deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('llm-council-device-id', deviceId);
+  }
+  return deviceId;
+}
+
 export const api = {
   /**
-   * List all conversations.
+   * List all conversations for this device.
    */
   async listConversations() {
     try {
-      const response = await fetch(`${API_BASE}/api/conversations`);
+      const deviceId = getDeviceId();
+      const response = await fetch(`${API_BASE}/api/conversations?device_id=${encodeURIComponent(deviceId)}`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -24,99 +36,86 @@ export const api = {
   },
 
   /**
-   * Create a new conversation.
+   * Create a new conversation for this device.
    */
   async createConversation() {
+    const deviceId = getDeviceId();
     const response = await fetch(`${API_BASE}/api/conversations`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({}),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: deviceId }),
     });
-    if (!response.ok) {
-      throw new Error('Failed to create conversation');
-    }
     return response.json();
   },
 
   /**
-   * Get a specific conversation.
+   * Get a specific conversation by ID.
    */
-  async getConversation(conversationId) {
-    const response = await fetch(
-      `${API_BASE}/api/conversations/${conversationId}`
-    );
-    if (!response.ok) {
-      throw new Error('Failed to get conversation');
-    }
+  async getConversation(id) {
+    const response = await fetch(`${API_BASE}/api/conversations/${id}`);
     return response.json();
   },
 
   /**
-   * Send a message in a conversation.
-   */
-  async sendMessage(conversationId, content) {
-    const response = await fetch(
-      `${API_BASE}/api/conversations/${conversationId}/message`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content }),
-      }
-    );
-    if (!response.ok) {
-      throw new Error('Failed to send message');
-    }
-    return response.json();
-  },
-
-  /**
-   * Send a message and receive streaming updates.
-   * @param {string} conversationId - The conversation ID
-   * @param {string} content - The message content
-   * @param {function} onEvent - Callback function for each event: (eventType, data) => void
-   * @returns {Promise<void>}
+   * Send a message and stream the response.
    */
   async sendMessageStream(conversationId, content, onEvent) {
     const response = await fetch(
-      `${API_BASE}/api/conversations/${conversationId}/message/stream`,
+      `${API_BASE}/api/conversations/${conversationId}/messages/stream`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
       }
     );
 
     if (!response.ok) {
-      throw new Error('Failed to send message');
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let buffer = '';
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n');
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
 
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const data = line.slice(6);
+          if (data === '[DONE]') {
+            onEvent('complete', {});
+            return;
+          }
+
           try {
             const event = JSON.parse(data);
             onEvent(event.type, event);
           } catch (e) {
-            console.error('Failed to parse SSE event:', e);
+            console.error('Failed to parse event:', e, data);
           }
         }
       }
     }
+  },
+
+  /**
+   * Send a message (non-streaming version).
+   */
+  async sendMessage(conversationId, content) {
+    const response = await fetch(
+      `${API_BASE}/api/conversations/${conversationId}/messages`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      }
+    );
+    return response.json();
   },
 };
